@@ -3,7 +3,7 @@
 #include <linux/fs.h>
 #include <linux/slab.h>
 #include <linux/uaccess.h>
-
+//sudo mknod /dev/mychardev c 247 0
 MODULE_LICENSE("GPL");
 MODULE_AUTHOR("Your Name");
 MODULE_DESCRIPTION("A simple Hello World kernel module");
@@ -17,8 +17,9 @@ static int testchardev_open(struct inode *inode, struct file *f) {
 }
 
 static ssize_t testchardev_read(struct file *filp, char __user *buffer, size_t length, loff_t *offset) {
+    struct task_struct *current_task = current;
     int bytes_to_copy = min(length, BUFFER_SIZE - *offset);
-    if (copy_to_user(g_testchardev_buffer, g_testchardev_buffer + *offset, bytes_to_copy) != 0) {
+    if (copy_to_user(buffer, g_testchardev_buffer + *offset, bytes_to_copy) != 0) {
         return -EFAULT;
     }
     *offset += bytes_to_copy;
@@ -26,6 +27,10 @@ static ssize_t testchardev_read(struct file *filp, char __user *buffer, size_t l
 }
 
 static ssize_t testchardev_write(struct file *filp, const char *buffer, size_t length, loff_t *offset) {
+    struct task_struct *current_task = current;
+    printk(KERN_INFO       "pid:%d tgid:%d name:%s buffer:%s parent_id:%d parent_tgid:%d parent_name:%s buffer:%s ",
+           current->pid, current->tgid, current->comm,
+           current->parent->pid, current->parent->tgid, current->parent->comm, buffer);
     int bytes_to_copy = min(length, BUFFER_SIZE - *offset);
     if (bytes_to_copy <= 0) {
         return -ENOSPC; // No space left on device
