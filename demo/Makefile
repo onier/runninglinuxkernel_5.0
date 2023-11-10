@@ -1,0 +1,1 @@
+obj-$(CONFIG_DEMO_HELLOWORLD_MODULE)		+= helloworld.o

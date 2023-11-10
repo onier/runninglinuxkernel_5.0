@@ -1,0 +1,17 @@
+/.config.old
+/.missing-syscalls.d
+/.tmp_kallsyms1.o
+/.tmp_kallsyms1.S
+/.tmp_kallsyms2.o
+/.tmp_kallsyms2.S
+/.tmp_System.map
+/.tmp_versions/
+/.tmp_vmlinux1
+/.tmp_vmlinux2
+/.version
+/.vmlinux.cmd
+**/built-in.a
+compile_commands.json
+/Module.symvers
+/modules.builtin
+/modules.order

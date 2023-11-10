@@ -29,4 +29,6 @@ source "crypto/Kconfig"
 
 source "lib/Kconfig"
 
+source "demo/Kconfig"
+
 source "lib/Kconfig.debug"

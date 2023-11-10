@@ -42,7 +42,7 @@ fi
 make_kernel_image(){
 		echo "start build kernel image..."
 		make debian_defconfig
-		make -j $JOBCOUNT
+		make CC='ccache aarch64-linux-gnu-gcc' -j $JOBCOUNT
 }
 
 make_menuconfig(){

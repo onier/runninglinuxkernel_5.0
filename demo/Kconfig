@@ -1,0 +1,10 @@
+# SPDX-License-Identifier: GPL-2.0
+menu "Demo Code"
+
+config DEMO_HELLOWORLD_MODULE
+	tristate "DEMO_HELLOWORLD module"
+	default y
+	---help---
+	  Enable support for various drivers needed on the Android platform
+
+endmenu
