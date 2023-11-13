@@ -5,21 +5,21 @@
 #include <linux/uaccess.h>
 #include <linux/poll.h>
 #include "mychardev.h"
-//sudo mknod /dev/mychardev c 247 0
+//sudo mknod /dev/testchardev c 247 0
+
 MODULE_LICENSE("GPL");
 MODULE_AUTHOR("Your Name");
 MODULE_DESCRIPTION("A simple Hello World kernel module");
 #define DEVICE_NAME "testchardev"
 static int major_number;
 static char *g_testchardev_buffer;
-static struct poll_table_struct wait_queue;
+static DECLARE_WAIT_QUEUE_HEAD(wait_queue);
 #define BUFFER_SIZE 1024
 
 static LIST_HEAD(all_testchardev_private_data_list);
 static spinlock_t my_testchardev_private_data_spinlock;
 struct testchardev_private_data {
     struct my_chardev_cmd_setting_data settingData;
-    char from[32];
     struct my_chardev_cmd_read_data *readData;
     spinlock_t lock;
     struct list_head list;  // 内核链表节点
@@ -55,28 +55,85 @@ static ssize_t testchardev_write(struct file *filp, const char *buffer, size_t l
     return bytes_to_copy;
 }
 
+static void free_testchardev_private_data(struct testchardev_private_data *data) {
+    if (data) {
+        if (data->readData) {
+            if (data->readData->data) {
+                kfree(data->readData->data);
+            }
+            kfree(data->readData);
+        }
+        kfree(data);
+    }
+}
+
 static int testchardev_release(struct inode *inode, struct file *filp) {
     if (filp->private_data != NULL) {
-        kfree(filp->private_data);
+        struct testchardev_private_data *current_data, *next_data;
+        spin_lock(&my_testchardev_private_data_spinlock);
+        list_for_each_entry_safe(current_data, next_data, &all_testchardev_private_data_list, list) {
+            if (current_data == filp->private_data) {
+                list_del(&current_data->list);
+                free_testchardev_private_data(current_data);
+                filp->private_data = NULL;
+            }
+        }
+        spin_unlock(&my_testchardev_private_data_spinlock);
     }
     return 0;
 }
 
 static long testchardev_ioctl_cmd_read(struct file *filp, unsigned long arg) {
     if (filp->private_data != NULL) {
-
+        struct testchardev_private_data *data = filp->private_data;
+        struct my_chardev_cmd_read_data *sendData = data->readData;
+        if (data->readData) {
+            struct my_chardev_cmd_read_data readData;
+            readData.data = kmalloc(data->readData->len, GFP_KERNEL);
+            strcpy(readData.from, data->readData->from);
+            readData.len = data->readData->len;
+            memcpy(readData.data, data->readData->data, readData.len);
+            if (copy_to_user((struct my_chardev_cmd_read_data *) arg, &readData,
+                             sizeof(struct my_chardev_cmd_read_data))) {
+                kfree(readData.data);
+                return -EFAULT;
+            }
+            kfree(readData.data);
+            kfree(data->readData);
+            data->readData = NULL;
+            return 0;
+        }
     }
     return -EFAULT;
 }
 
 static long testchardev_ioctl_cmd_send(struct file *filp, unsigned long arg) {
     if (filp->private_data != NULL) {
-
+        struct testchardev_private_data *from = filp->private_data;
+        struct my_chardev_cmd_send_data *sendData = kmalloc(sizeof(struct my_chardev_cmd_send_data), GFP_KERNEL);
+        if (copy_from_user(sendData, (struct my_chardev_cmd_send_data __user *) arg,
+                           sizeof(struct my_chardev_cmd_send_data))) {
+            pr_err("copy my_chardev_cmd_send_data send");
+            return -EFAULT;
+        }
+        pr_info("send data to %s len:%d data:%s", sendData->name, sendData->len, sendData->data);
         struct testchardev_private_data *current_data, *next_data;
         spin_lock(&my_testchardev_private_data_spinlock);
         list_for_each_entry_safe(current_data, next_data, &all_testchardev_private_data_list, list) {
-
+            if (strcmp(current_data->settingData.name, sendData->name) == 0) {
+                if (current_data->readData == NULL) {
+                    current_data->readData = kmalloc(sizeof(struct my_chardev_cmd_read_data), GFP_KERNEL);
+                }
+                memcpy(current_data->readData->from, from->settingData.name, sizeof(from->settingData.name));
+                current_data->readData->len = sendData->len;
+                current_data->readData->data = kmalloc(current_data->readData->len, GFP_KERNEL);
+                memcpy(current_data->readData->data, sendData->data, current_data->readData->len);
+            }
         }
+        spin_unlock(&my_testchardev_private_data_spinlock);
+//        kfree(sendData->data);
+        kfree(sendData);
+        return 0;
     }
     return -EFAULT;
 }
@@ -84,16 +141,18 @@ static long testchardev_ioctl_cmd_send(struct file *filp, unsigned long arg) {
 static long testchardev_ioctl_cmd_set(struct file *filp, unsigned long arg) {
     if (filp->private_data == NULL) {
         struct testchardev_private_data *data = kmalloc(sizeof(struct testchardev_private_data), GFP_KERNEL);
-        spin_lock_init(&data->lock);
         if (copy_from_user(&data->settingData, (struct my_chardev_cmd_setting_data __user *) arg,
                            sizeof(struct my_chardev_cmd_setting_data))) {
             pr_err("Failed to copy data from user space\n");
             return -EFAULT;
         }
+        spin_lock_init(&data->lock);
+        data->readData = NULL;
         spin_lock(&my_testchardev_private_data_spinlock);
         list_add_tail(&data->list, &all_testchardev_private_data_list);
         spin_unlock(&my_testchardev_private_data_spinlock);
         filp->private_data = data;
+        return 0;
     } else {
         printk(KERN_ERR, "the testchardev_ioctl_cmd_set was set");
     }
@@ -107,23 +166,20 @@ static long testchardev_ioctl(struct file *filp, unsigned int cmd, unsigned long
         case MY_CUSTOM_IOCTL_CMD_REAND:
             return testchardev_ioctl_cmd_read(filp, arg);
         case MY_CUSTOM_IOCTL_CMD_SEND:
-            return testchardev_ioctl_cmd_set(filp, arg);
+            return testchardev_ioctl_cmd_send(filp, arg);
         default:
             return -EINVAL;
     }
     return 0;
 }
 
-static __poll_t testchardev_poll(struct file *filp, struct poll_table_struct *wait) {
+static __poll_t testchardev_poll(struct file *filp, poll_table *wait) {
     unsigned int mask = 0;
-
     poll_wait(filp, &wait_queue, wait);
-
-//    // 根据设备状态设置事件掩码
-//    if (buffer_len > 0) {
-//        mask |= POLLIN | POLLRDNORM;  // 数据可读事件
-//    }
-
+    struct testchardev_private_data *data = filp->private_data;
+    if (data && data->readData) {
+        mask |= POLLIN | POLLRDNORM;  // 数据可读事件
+    }
     return mask;
 }
 

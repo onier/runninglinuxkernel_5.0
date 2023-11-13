@@ -17,6 +17,7 @@ struct my_chardev_cmd_setting_data {
 };
 
 struct my_chardev_cmd_read_data {
+    char from[32];
     int len;
     char *data;
 };

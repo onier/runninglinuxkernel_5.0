@@ -7,4 +7,9 @@ config DEMO_HELLOWORLD_MODULE
 	---help---
 	  Enable support for various drivers needed on the Android platform
 
+config CHARDEV_IOCTL_DEMO_MODULE
+    tristate "chardev_ioctl_demo"
+    default m
+    ---help---
+        chardev_ioctl_demo
 endmenu
