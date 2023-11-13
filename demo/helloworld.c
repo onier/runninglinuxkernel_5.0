@@ -83,22 +83,40 @@ static int testchardev_release(struct inode *inode, struct file *filp) {
     return 0;
 }
 
+static long testchardev_ioctl_cmd_read_size(struct file *filp, unsigned long arg) {
+    if (filp->private_data != NULL) {
+        struct testchardev_private_data *data = filp->private_data;
+        struct my_chardev_cmd_read_data *sendData = data->readData;
+        if (data->readData) {
+            if (copy_to_user((int *__user) arg, &data->readData->len,
+                             sizeof(int))) {
+                return -EFAULT;
+            }
+            return 0;
+        }
+    }
+    return -EFAULT;
+}
+
 static long testchardev_ioctl_cmd_read(struct file *filp, unsigned long arg) {
     if (filp->private_data != NULL) {
         struct testchardev_private_data *data = filp->private_data;
         struct my_chardev_cmd_read_data *sendData = data->readData;
         if (data->readData) {
             struct my_chardev_cmd_read_data readData;
-            readData.data = kmalloc(data->readData->len, GFP_KERNEL);
-            strcpy(readData.from, data->readData->from);
-            readData.len = data->readData->len;
-            memcpy(readData.data, data->readData->data, readData.len);
-            if (copy_to_user((struct my_chardev_cmd_read_data *) arg, &readData,
-                             sizeof(struct my_chardev_cmd_read_data))) {
-                kfree(readData.data);
+            if (copy_from_user(&readData, (struct my_chardev_cmd_read_data __user *) arg,
+                               sizeof(struct my_chardev_cmd_read_data))) {
                 return -EFAULT;
             }
-            kfree(readData.data);
+            strcpy(readData.from, data->readData->from);
+            readData.len = data->readData->len;
+            if (copy_to_user((struct my_chardev_cmd_read_data *__user) arg, &readData,
+                             sizeof(struct my_chardev_cmd_read_data))) {
+                return -EFAULT;
+            }
+            if (copy_to_user(readData.data, data->readData->data, data->readData->len)) {
+                return -EFAULT;
+            }
             kfree(data->readData);
             data->readData = NULL;
             return 0;
@@ -128,6 +146,7 @@ static long testchardev_ioctl_cmd_send(struct file *filp, unsigned long arg) {
                 current_data->readData->len = sendData->len;
                 current_data->readData->data = kmalloc(current_data->readData->len, GFP_KERNEL);
                 memcpy(current_data->readData->data, sendData->data, current_data->readData->len);
+                wake_up_locked_poll(&wait_queue,POLLIN);
             }
         }
         spin_unlock(&my_testchardev_private_data_spinlock);
@@ -163,10 +182,12 @@ static long testchardev_ioctl(struct file *filp, unsigned int cmd, unsigned long
     switch (cmd) {
         case MY_CUSTOM_IOCTL_CMD_SETTING:
             return testchardev_ioctl_cmd_set(filp, arg);
-        case MY_CUSTOM_IOCTL_CMD_REAND:
+        case MY_CUSTOM_IOCTL_CMD_READ:
             return testchardev_ioctl_cmd_read(filp, arg);
         case MY_CUSTOM_IOCTL_CMD_SEND:
             return testchardev_ioctl_cmd_send(filp, arg);
+        case MY_CUSTOM_IOCTL_CMD_READ_SIZE:
+            return testchardev_ioctl_cmd_read_size(filp, arg);
         default:
             return -EINVAL;
     }

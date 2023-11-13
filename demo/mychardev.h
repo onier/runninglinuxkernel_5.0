@@ -6,7 +6,8 @@
 #define RUNNINGLINUXKERNEL_5_0_MYCHARDEV_H
 // 在头文件中定义 IOCTL 命令和数据结构
 #define MY_CUSTOM_IOCTL_CMD_SETTING _IOW('MY_CUSTOM_IOCTL_CMD_SETTING', 1, struct my_chardev_cmd_setting_data)
-#define MY_CUSTOM_IOCTL_CMD_REAND _IOW('MY_CHARDEV_CMD_READ', 2, struct my_chardev_cmd_read_data)
+#define MY_CUSTOM_IOCTL_CMD_READ _IOW('MY_CHARDEV_CMD_READ', 2, struct my_chardev_cmd_read_data)
+#define MY_CUSTOM_IOCTL_CMD_READ_SIZE _IOW('MY_CHARDEV_CMD_READ', 2, int)
 #define MY_CUSTOM_IOCTL_CMD_SEND _IOW('MY_CHARDEV_CMD_WRITE', 3, struct my_chardev_cmd_send_data)
 #define SETTING_CMD
 #define READ_CMD

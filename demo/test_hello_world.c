@@ -33,8 +33,16 @@ int send_data(char *data, int len, char *to, int fd) {
 }
 
 int read_data(int fd) {
+    int size = 0;
+    if (ioctl(fd, MY_CUSTOM_IOCTL_CMD_READ_SIZE, &size) == -1) {
+        perror("Error getting data via ioctl");
+        return -1;
+    }
+    printf("read data size %d \n", size);
     struct my_chardev_cmd_read_data get_data;
-    if (ioctl(fd, MY_CUSTOM_IOCTL_CMD_REAND, &get_data) == -1) {
+    get_data.len = size;
+    get_data.data = calloc(size, sizeof(char));
+    if (ioctl(fd, MY_CUSTOM_IOCTL_CMD_READ, &get_data) == -1) {
         perror("Error getting data via ioctl");
         return -1;
     }
