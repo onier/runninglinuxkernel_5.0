@@ -12,4 +12,10 @@ config CHARDEV_IOCTL_DEMO_MODULE
     default m
     ---help---
         chardev_ioctl_demo
+
+config MY_MMAP_DEVICE_DEMO_MODULE
+    tristate "my_mmap_device"
+    default m
+    ---help---
+        my_mmap_device
 endmenu

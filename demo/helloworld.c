@@ -146,7 +146,7 @@ static long testchardev_ioctl_cmd_send(struct file *filp, unsigned long arg) {
                 current_data->readData->len = sendData->len;
                 current_data->readData->data = kmalloc(current_data->readData->len, GFP_KERNEL);
                 memcpy(current_data->readData->data, sendData->data, current_data->readData->len);
-                wake_up_locked_poll(&wait_queue,POLLIN);
+                wake_up_locked_poll(&wait_queue, POLLIN);
             }
         }
         spin_unlock(&my_testchardev_private_data_spinlock);
